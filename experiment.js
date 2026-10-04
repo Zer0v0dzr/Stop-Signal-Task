@@ -75,6 +75,38 @@ let pendingContinue = null;
 
 
 // ======================================
+// DB status visibility
+// ======================================
+
+function showDBStatusBadge(){
+
+    const el =
+        document.getElementById(
+            "db-status"
+        );
+
+    if(el){
+        el.style.display = "block";
+    }
+
+}
+
+
+function hideDBStatusBadge(){
+
+    const el =
+        document.getElementById(
+            "db-status"
+        );
+
+    if(el){
+        el.style.display = "none";
+    }
+
+}
+
+
+// ======================================
 // init
 // ======================================
 
@@ -115,12 +147,9 @@ function initExperiment(){
 
 function showSubjectScreen(){
 
-    [
-        "instruction-screen",
-        "fixation",
-        "stimulus",
-        "response-area"
-    ].forEach(id=>{
+    showDBStatusBadge();
+
+    ["instruction-screen", "fixation", "stimulus", "response-area"].forEach(id=>{
 
         const element =
             document.getElementById(id);
@@ -439,6 +468,7 @@ function showSubjectScreen(){
                 );
             }
 
+            hideDBStatusBadge();
 
             screen.remove();
 
@@ -719,7 +749,9 @@ function startPractice(){
 
 function startBlock(blockIndex){
 
-if(blockIndex===0){
+    hideDBStatusBadge();
+
+    if(blockIndex===0){
     resetFormalSSD();
 }
     currentBlock =
@@ -2054,9 +2086,10 @@ function finishPhase(){
 
 function showBlockRest(){
 
+    showDBStatusBadge();
+
     // ======================================
     // Get data from the completed block
-    // ======================================
 
     const rows =
         allData.filter(
@@ -2151,6 +2184,8 @@ function showBlockRest(){
         if(resumed){
             return;
         }
+
+    hideDBStatusBadge();
 
 
         resumed = true;
@@ -2424,7 +2459,7 @@ async function finalizeSSTDatabase(){
 
 
 function endExperiment(){
-
+    showDBStatusBadge();
     responseEnabled =
         false;
 
