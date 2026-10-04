@@ -10,7 +10,6 @@
 
 <link rel="stylesheet" href="style.css">
 
-
 </head>
 
 
@@ -30,47 +29,309 @@
 <img id="stimulus">
 
 
-
 <div id="response-area">
 
 
-    <div class="response-button"
-    id="left-response">
-
+    <div
+        class="response-button"
+        id="left-response"
+    >
         左
-
     </div>
 
 
-
-    <div class="response-button"
-    id="right-response">
-
+    <div
+        class="response-button"
+        id="right-response"
+    >
         右
-
     </div>
 
 
 </div>
 
 
+<!-- =====================================================
+     数据库连接状态
+===================================================== -->
+
+<div
+    id="db-status"
+    style="
+        position:fixed;
+        top:10px;
+        right:10px;
+        z-index:5000;
+
+        padding:7px 12px;
+
+        border-radius:6px;
+
+        background:#eeeeee;
+        color:#333333;
+
+        font-family:Arial, 'Microsoft YaHei', sans-serif;
+        font-size:13px;
+
+        opacity:0.9;
+
+        pointer-events:none;
+    "
+>
+    数据库：正在检查...
+</div>
 
 
+<script>
 
-<!-- Supabase JavaScript SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+/* =========================================================
+   动态加载 JS
+========================================================= */
 
-<!-- SST core -->
-<script src="config.js"></script>
-<script src="staircase.js"></script>
-<script src="trialGenerator.js"></script>
-<script src="data.js"></script>
+function loadScript(src){
 
-<!-- Supabase database -->
-<script src="supabase.js"></script>
+    return new Promise(
+        function(resolve, reject){
 
-<!-- Main experiment -->
-<script src="experiment.js"></script>
+            const script =
+                document.createElement(
+                    "script"
+                );
+
+
+            script.src =
+                src;
+
+
+            script.onload =
+                function(){
+
+                    resolve();
+
+                };
+
+
+            script.onerror =
+                function(){
+
+                    reject(
+                        new Error(
+                            "Failed to load: " +
+                            src
+                        )
+                    );
+
+                };
+
+
+            document.body.appendChild(
+                script
+            );
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   启动实验
+========================================================= */
+
+async function loadExperiment(){
+
+
+    /* =====================================================
+       1. 尝试加载 Supabase SDK
+
+       第一线路：jsDelivr
+       第二线路：unpkg
+
+       两个都失败也不阻止实验。
+    ===================================================== */
+
+    let supabaseLoaded =
+        false;
+
+
+    try{
+
+        await loadScript(
+            "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+        );
+
+
+        if(
+            typeof window.supabase !==
+            "undefined"
+        ){
+
+            supabaseLoaded =
+                true;
+
+        }
+
+    }
+    catch(error){
+
+        console.warn(
+            "Supabase jsDelivr failed:",
+            error
+        );
+
+    }
+
+
+    /*
+        第一线路失败 → 尝试 unpkg
+    */
+
+    if(
+        !supabaseLoaded
+    ){
+
+        try{
+
+            await loadScript(
+                "https://unpkg.com/@supabase/supabase-js@2"
+            );
+
+
+            if(
+                typeof window.supabase !==
+                "undefined"
+            ){
+
+                supabaseLoaded =
+                    true;
+
+            }
+
+        }
+        catch(error){
+
+            console.warn(
+                "Supabase unpkg failed:",
+                error
+            );
+
+        }
+
+    }
+
+
+    /*
+        两个 CDN 都失败。
+
+        只提示。
+        SST 主实验继续加载。
+    */
+
+    if(
+        !supabaseLoaded
+    ){
+
+        console.warn(
+            "Supabase SDK unavailable. " +
+            "SST will continue with local CSV backup."
+        );
+
+
+        const status =
+            document.getElementById(
+                "db-status"
+            );
+
+
+        if(status){
+
+            status.textContent =
+                "数据库：连接不可用，仅本地保存";
+
+
+            status.style.background =
+                "#ffd6d6";
+
+
+            status.style.color =
+                "#8b0000";
+
+        }
+
+    }
+
+
+    /* =====================================================
+       2. SST 核心代码
+
+       注意：
+       Supabase 加载失败也继续。
+    ===================================================== */
+
+    await loadScript(
+        "config.js"
+    );
+
+
+    await loadScript(
+        "staircase.js"
+    );
+
+
+    await loadScript(
+        "trialGenerator.js"
+    );
+
+
+    await loadScript(
+        "data.js"
+    );
+
+
+    /*
+        supabase.js 自己会判断
+        SDK 是否存在。
+    */
+
+    await loadScript(
+        "supabase.js"
+    );
+
+
+    /*
+        最后启动主实验。
+    */
+
+    await loadScript(
+        "experiment.js"
+    );
+
+}
+
+
+/* =========================================================
+   如果 SST 自己的核心文件加载失败，
+   才属于真正无法运行实验。
+========================================================= */
+
+loadExperiment()
+    .catch(
+        function(error){
+
+            console.error(
+                "SST loading failed:",
+                error
+            );
+
+
+            alert(
+                "实验程序加载失败，请刷新页面后重试。"
+            );
+
+        }
+    );
+
+</script>
 
 
 </body>

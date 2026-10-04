@@ -42,6 +42,8 @@ let currentTrial;
 
 let allData = [];
 
+// 所有尚未完成的数据库上传任务
+let pendingDatabaseOperations = [];
 
 
 // response
@@ -1943,16 +1945,25 @@ function saveTrial(trial){
     // 网络延迟不会阻塞实验 trial timing。
     // ========================================================
 
-    uploadSSTTrial(
-        trialRow
-    ).catch(error=>{
+    const uploadPromise =
+        uploadSSTTrial(
+            trialRow
+        )
+        .catch(error=>{
 
-        console.error(
-            "Supabase background upload error:",
-            error
-        );
+            console.error(
+                "Supabase background upload error:",
+                error
+            );
 
-    });
+            return false;
+
+        });
+
+
+    pendingDatabaseOperations.push(
+        uploadPromise
+    );
 
 
     // ========================================================
@@ -2349,7 +2360,59 @@ function hideStimulus(){
 
 
 
+async function finalizeSSTDatabase(){
 
+    try{
+
+        /*
+            等待所有 trial 上传结束。
+
+            注意：
+            这里不会阻塞实验过程，
+            只发生在实验已经结束以后。
+        */
+
+        await Promise.allSettled(
+            pendingDatabaseOperations
+        );
+
+
+        /*
+            所有 trial 上传尝试结束后，
+            再标记 session completed。
+        */
+
+        const completed =
+            await completeSSTSession();
+
+
+        if(completed){
+
+            console.log(
+                "Supabase: all SST uploads finished, session completed."
+            );
+
+        }
+        else{
+
+            console.warn(
+                "Supabase: SST session could not be completed. " +
+                "Please keep the local CSV backup."
+            );
+
+        }
+
+    }
+    catch(error){
+
+        console.error(
+            "SST database finalization error:",
+            error
+        );
+
+    }
+
+}
 
 
 
@@ -2393,32 +2456,16 @@ function endExperiment(){
     );
 
 
-    // ========================================================
-    // Local CSV backup
-    // ========================================================
 
-    exportCSV(
-        allData,
-        subjectID
-    );
+// ========================================================
+// Finalize Supabase in background
+//
+// Wait for all trial uploads first,
+// then mark the session as completed.
+// Do not await here so the end screen appears immediately.
+// ========================================================
 
-
-    // ========================================================
-    // Mark Supabase session as completed
-    //
-    // Do not await:
-    // the participant should see the end screen immediately.
-    // ========================================================
-
-    completeSSTSession()
-        .catch(error=>{
-
-            console.error(
-                "Supabase completion update error:",
-                error
-            );
-
-        });
+    finalizeSSTDatabase();
 
 
     // ========================================================
@@ -2432,15 +2479,56 @@ function endExperiment(){
         .insertAdjacentHTML(
             "beforeend",
 
-`
-<div style="
-color:white;
-font-size:40px;
-text-align:center;
-margin-top:25vh;
-">
-实验结束，谢谢参与！
-</div>
-`
+    `
+    <div style="
+        color:white;
+        text-align:center;
+        margin-top:22vh;
+        font-family:Arial, 'Microsoft YaHei', sans-serif;
+    ">
+
+        <div style="
+            font-size:40px;
+            margin-bottom:36px;
+        ">
+            实验结束，谢谢参与！
+        </div>
+
+        <button
+            id="download-sst-button"
+            style="
+                padding:16px 36px;
+                font-size:24px;
+                font-weight:bold;
+                border:2px solid white;
+                border-radius:6px;
+                background-color:rgb(100,100,100);
+                color:white;
+                cursor:pointer;
+                touch-action:manipulation;
+            "
+        >
+            下载数据
+        </button>
+
+    </div>
+    `
         );
+
+
+    document
+        .getElementById(
+            "download-sst-button"
+        )
+        .addEventListener(
+            "click",
+            function(){
+
+                exportCSV(
+                    allData,
+                    subjectID
+                );
+
+            }
+    );
 }

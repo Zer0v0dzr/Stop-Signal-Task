@@ -6,26 +6,150 @@
 const SUPABASE_URL =
     "https://sxvtbwtitdbaflaigahj.supabase.co";
 
+
 const SUPABASE_PUBLISHABLE_KEY =
     "sb_publishable_9LVOphB0mpLVwN5x6qLCLA_ha1Z5DH6";
+
+
+// ============================================================
+// Database status
+// ============================================================
+
+function setSSTDBStatus(
+    text,
+    status
+){
+
+    const element =
+        document.getElementById(
+            "db-status"
+        );
+
+
+    if(!element){
+        return;
+    }
+
+
+    element.textContent =
+        "数据库：" + text;
+
+
+    if(status === "ok"){
+
+        element.style.background =
+            "#d9f5d9";
+
+        element.style.color =
+            "#176b17";
+
+    }
+    else if(status === "error"){
+
+        element.style.background =
+            "#ffd6d6";
+
+        element.style.color =
+            "#8b0000";
+
+    }
+    else{
+
+        element.style.background =
+            "#eeeeee";
+
+        element.style.color =
+            "#333333";
+
+    }
+
+}
 
 
 // ============================================================
 // Initialize Supabase
 // ============================================================
 
-const supabaseClient =
-    window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY
+let supabaseClient =
+    null;
+
+
+/*
+    注意：
+
+    SDK 加载失败时，
+    不允许这里直接报错。
+
+    SST 必须仍然能够继续。
+*/
+
+if(
+    typeof window.supabase ===
+    "undefined"
+){
+
+    console.warn(
+        "Supabase SDK unavailable. " +
+        "SST will continue locally."
     );
+
+
+    setSSTDBStatus(
+        "连接不可用，仅本地保存",
+        "error"
+    );
+
+}
+else{
+
+    try{
+
+        supabaseClient =
+            window.supabase.createClient(
+                SUPABASE_URL,
+                SUPABASE_PUBLISHABLE_KEY
+            );
+
+
+        console.log(
+            "Supabase SDK initialized."
+        );
+
+
+        setSSTDBStatus(
+            "SDK已加载",
+            "waiting"
+        );
+
+    }
+    catch(error){
+
+        console.error(
+            "Supabase initialization failed:",
+            error
+        );
+
+
+        supabaseClient =
+            null;
+
+
+        setSSTDBStatus(
+            "初始化失败，仅本地保存",
+            "error"
+        );
+
+    }
+
+}
 
 
 // ============================================================
 // Session state
 // ============================================================
 
-let currentSessionID = null;
+let currentSessionID =
+    null;
 
 
 // ============================================================
@@ -38,22 +162,48 @@ function generateSessionID(){
         typeof crypto !== "undefined" &&
         typeof crypto.randomUUID === "function"
     ){
+
         return crypto.randomUUID();
+
     }
 
+
+    /*
+        老浏览器 / 微信 WebView fallback
+
+        仍生成标准 UUID v4 格式。
+    */
+
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-        .replace(/[xy]/g, function(c){
+        .replace(
+            /[xy]/g,
+            function(c){
 
-            const r =
-                Math.random() * 16 | 0;
+                const r =
+                    Math.random() *
+                    16 |
+                    0;
 
-            const v =
-                c === "x"
-                ? r
-                : (r & 0x3 | 0x8);
 
-            return v.toString(16);
-        });
+                const v =
+                    c === "x"
+                        ?
+                        r
+                        :
+                        (
+                            r &
+                            0x3 |
+                            0x8
+                        );
+
+
+                return v.toString(
+                    16
+                );
+
+            }
+        );
+
 }
 
 
@@ -64,8 +214,13 @@ function generateSessionID(){
 function wait(ms){
 
     return new Promise(
-        resolve => setTimeout(resolve, ms)
+        resolve =>
+            setTimeout(
+                resolve,
+                ms
+            )
     );
+
 }
 
 
@@ -73,15 +228,56 @@ function wait(ms){
 // Create SST session
 // ============================================================
 
-async function createSSTSession(subjectID){
+async function createSSTSession(
+    subjectID
+){
 
-    if(currentSessionID){
+    /*
+        Supabase 不可用时：
+        直接返回 false。
+
+        experiment.js 会继续实验，
+        不阻断被试。
+    */
+
+    if(
+        !supabaseClient
+    ){
+
+        console.warn(
+            "Supabase unavailable. " +
+            "SST session will not be created."
+        );
+
+
+        setSSTDBStatus(
+            "未连接，仅本地保存",
+            "error"
+        );
+
+
+        return false;
+
+    }
+
+
+    if(
+        currentSessionID
+    ){
+
         return true;
+
     }
 
 
     currentSessionID =
         generateSessionID();
+
+
+    setSSTDBStatus(
+        "正在连接...",
+        "waiting"
+    );
 
 
     for(
@@ -94,7 +290,9 @@ async function createSSTSession(subjectID){
 
             const { error } =
                 await supabaseClient
-                    .from("sst_sessions")
+                    .from(
+                        "sst_sessions"
+                    )
                     .insert({
 
                         session_id:
@@ -105,17 +303,28 @@ async function createSSTSession(subjectID){
 
                         completed:
                             false
+
                     });
 
 
-            if(!error){
+            if(
+                !error
+            ){
 
                 console.log(
                     "Supabase: SST session created:",
                     currentSessionID
                 );
 
+
+                setSSTDBStatus(
+                    "连接正常",
+                    "ok"
+                );
+
+
                 return true;
+
             }
 
 
@@ -126,7 +335,16 @@ async function createSSTSession(subjectID){
                 error
             );
 
-        }catch(error){
+
+            setSSTDBStatus(
+                "连接失败 " +
+                attempt +
+                "/3",
+                "error"
+            );
+
+        }
+        catch(error){
 
             console.error(
                 "Supabase: session creation attempt " +
@@ -134,15 +352,30 @@ async function createSSTSession(subjectID){
                 " failed:",
                 error
             );
+
+
+            setSSTDBStatus(
+                "连接异常 " +
+                attempt +
+                "/3",
+                "error"
+            );
+
         }
 
 
-        if(attempt < 3){
+        if(
+            attempt <
+            3
+        ){
 
             await wait(
-                1000 * attempt
+                1000 *
+                attempt
             );
+
         }
+
     }
 
 
@@ -152,7 +385,14 @@ async function createSSTSession(subjectID){
     );
 
 
+    setSSTDBStatus(
+        "连接失败，仅本地保存",
+        "error"
+    );
+
+
     return false;
+
 }
 
 
@@ -160,16 +400,59 @@ async function createSSTSession(subjectID){
 // Upload one SST trial
 // ============================================================
 
-async function uploadSSTTrial(trialData){
+async function uploadSSTTrial(
+    trialData
+){
 
-    if(!currentSessionID){
+    /*
+        SDK / client 不可用：
+        不报错、不阻断。
+    */
+
+    if(
+        !supabaseClient
+    ){
+
+        console.warn(
+            "Supabase unavailable; " +
+            "trial retained locally only."
+        );
+
+
+        setSSTDBStatus(
+            "未连接，仅本地保存",
+            "error"
+        );
+
+
+        return false;
+
+    }
+
+
+    /*
+        Session 没创建成功时，
+        仍然允许 SST 正常继续。
+    */
+
+    if(
+        !currentSessionID
+    ){
 
         console.warn(
             "Supabase: no active session; " +
             "trial retained locally only."
         );
 
+
+        setSSTDBStatus(
+            "无有效Session，仅本地保存",
+            "error"
+        );
+
+
         return false;
+
     }
 
 
@@ -179,52 +462,69 @@ async function uploadSSTTrial(trialData){
             currentSessionID,
 
         subject:
-            trialData.subject ?? null,
+            trialData.subject ??
+            null,
 
         phase:
-            trialData.phase ?? null,
+            trialData.phase ??
+            null,
 
         practice_attempt:
-            trialData.practiceAttempt ?? 0,
+            trialData.practiceAttempt ??
+            0,
 
         block:
-            trialData.block ?? null,
+            trialData.block ??
+            null,
 
         trial:
-            trialData.trial ?? null,
+            trialData.trial ??
+            null,
 
         type:
-            trialData.type ?? null,
+            trialData.type ??
+            null,
 
         direction:
-            trialData.direction ?? null,
+            trialData.direction ??
+            null,
 
         response:
-            trialData.response ?? null,
+            trialData.response ??
+            null,
 
         rt:
-            trialData.RT ?? null,
+            trialData.RT ??
+            null,
 
         accuracy:
-            trialData.accuracy ?? null,
+            trialData.accuracy ??
+            null,
 
         choice_error:
-            trialData.choiceError ?? null,
+            trialData.choiceError ??
+            null,
 
         go_omission:
-            trialData.goOmission ?? null,
+            trialData.goOmission ??
+            null,
 
         ssd:
-            trialData.SSD ?? null,
+            trialData.SSD ??
+            null,
 
         stop_success:
-            trialData.stopSuccess ?? null,
+            trialData.stopSuccess ??
+            null,
 
         premature_response:
-            trialData.prematureResponse ?? null,
+            trialData.prematureResponse ??
+            null,
 
         trial_timestamp:
-            trialData.trialTimestamp ?? null
+            trialData.trialTimestamp ??
+            null
+
     };
 
 
@@ -238,46 +538,75 @@ async function uploadSSTTrial(trialData){
 
             const { error } =
                 await supabaseClient
-                    .from("sst_trials")
-                    .insert(row);
+                    .from(
+                        "sst_trials"
+                    )
+                    .insert(
+                        row
+                    );
 
 
-            if(!error){
+            if(
+                !error
+            ){
 
                 console.log(
                     "Supabase: trial uploaded:",
                     trialData.phase,
                     "practice attempt:",
-                    trialData.practiceAttempt ?? 0,
+                    trialData.practiceAttempt ??
+                    0,
                     "block:",
                     trialData.block,
                     "trial:",
                     trialData.trial
                 );
 
+
+                setSSTDBStatus(
+                    "实时同步正常",
+                    "ok"
+                );
+
+
                 return true;
+
             }
 
 
-            // Duplicate trial:
-            // treat as already saved successfully.
+            /*
+                Duplicate trial。
+
+                如果同一条数据已经存在，
+                视为已经安全保存。
+            */
 
             if(
-                error.code === "23505"
+                error.code ===
+                "23505"
             ){
 
                 console.log(
                     "Supabase: trial already exists:",
                     trialData.phase,
                     "practice attempt:",
-                    trialData.practiceAttempt ?? 0,
+                    trialData.practiceAttempt ??
+                    0,
                     "block:",
                     trialData.block,
                     "trial:",
                     trialData.trial
                 );
 
+
+                setSSTDBStatus(
+                    "实时同步正常",
+                    "ok"
+                );
+
+
                 return true;
+
             }
 
 
@@ -288,7 +617,8 @@ async function uploadSSTTrial(trialData){
                 error
             );
 
-        }catch(error){
+        }
+        catch(error){
 
             console.error(
                 "Supabase: trial upload attempt " +
@@ -296,15 +626,22 @@ async function uploadSSTTrial(trialData){
                 " failed:",
                 error
             );
+
         }
 
 
-        if(attempt < 3){
+        if(
+            attempt <
+            3
+        ){
 
             await wait(
-                1000 * attempt
+                1000 *
+                attempt
             );
+
         }
+
     }
 
 
@@ -315,7 +652,14 @@ async function uploadSSTTrial(trialData){
     );
 
 
+    setSSTDBStatus(
+        "部分上传失败，请结束后下载CSV",
+        "error"
+    );
+
+
     return false;
+
 }
 
 
@@ -325,13 +669,44 @@ async function uploadSSTTrial(trialData){
 
 async function completeSSTSession(){
 
-    if(!currentSessionID){
+    if(
+        !supabaseClient
+    ){
+
+        console.warn(
+            "Supabase unavailable; " +
+            "session cannot be completed remotely."
+        );
+
+
+        setSSTDBStatus(
+            "未连接，请下载CSV",
+            "error"
+        );
+
+
+        return false;
+
+    }
+
+
+    if(
+        !currentSessionID
+    ){
 
         console.warn(
             "Supabase: no active session."
         );
 
+
+        setSSTDBStatus(
+            "无有效Session，请下载CSV",
+            "error"
+        );
+
+
         return false;
+
     }
 
 
@@ -348,20 +723,32 @@ async function completeSSTSession(){
                     .rpc(
                         "complete_sst_session",
                         {
+
                             p_session_id:
                                 currentSessionID
+
                         }
                     );
 
 
-            if(!error){
+            if(
+                !error
+            ){
 
                 console.log(
                     "Supabase: SST session completed:",
                     currentSessionID
                 );
 
+
+                setSSTDBStatus(
+                    "实验数据已同步",
+                    "ok"
+                );
+
+
                 return true;
+
             }
 
 
@@ -372,7 +759,8 @@ async function completeSSTSession(){
                 error
             );
 
-        }catch(error){
+        }
+        catch(error){
 
             console.error(
                 "Supabase: completion attempt " +
@@ -380,15 +768,22 @@ async function completeSSTSession(){
                 " failed:",
                 error
             );
+
         }
 
 
-        if(attempt < 3){
+        if(
+            attempt <
+            3
+        ){
 
             await wait(
-                1000 * attempt
+                1000 *
+                attempt
             );
+
         }
+
     }
 
 
@@ -397,5 +792,12 @@ async function completeSSTSession(){
     );
 
 
+    setSSTDBStatus(
+        "同步未完成，请下载CSV",
+        "error"
+    );
+
+
     return false;
+
 }
