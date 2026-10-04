@@ -2,6 +2,7 @@
 // SST Experiment Parameters
 // ===========================
 
+const TASK_VERSION = "1.0";
 
 const CONFIG = {
 
