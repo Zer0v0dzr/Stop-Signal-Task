@@ -301,6 +301,9 @@ async function createSSTSession(
                         subject:
                             subjectID,
 
+                      task_version:
+                            TASK_VERSION,
+                        
                         completed:
                             false
 
